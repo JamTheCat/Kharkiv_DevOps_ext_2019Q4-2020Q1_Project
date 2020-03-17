@@ -1,0 +1,28 @@
+version: "3.7"
+
+
+services:
+
+  backup:
+    image: ubuntu
+    volumes:
+    - "./backup:/data"
+    - "./backup/backup.sh:/backup.sh"
+    - "./backup/restore.sh:/restore.sh"
+    - "gogs-data:/volume/gogs-data"
+    - "jenkins-data:/volume/jenkins-data"
+    - "sonarqube-data:/volume/sonarqube-data"
+    - "sonarqube-extensions:/volume/sonarqube-extensions"
+    - "sonarqube-logs:/volume/sonarqube-logs"
+
+
+volumes:
+  gogs-data:
+  jenkins-data:
+  sonarqube-data:
+  sonarqube-extensions:
+  sonarqube-logs:
+
+
+# docker-compose -f backup.yml run --rm backup bash backup.sh
+# docker-compose -f backup.yml run --rm backup bash restore.sh

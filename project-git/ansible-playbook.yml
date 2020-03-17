@@ -1,0 +1,96 @@
+---
+
+- hosts: staging
+  tasks:
+  - name: Build docker image
+    docker_image:
+      name: project
+      path: .
+      force: yes
+  - name: Remove old container
+    docker_container:
+      name: project_container_1
+      state: absent
+  - name: Create new container
+    docker_container:
+      name: project_container_1
+      image: project
+      purge_networks: yes
+      networks:
+      - name: project_default
+      labels:
+        traefik.http.routers.staging.rule: "PathPrefix(`/`)"
+        traefik.http.services.staging.loadbalancer.server.port: "80"
+
+- hosts: production
+  become: yes
+  gather_facts: false
+  tasks:
+  - block:
+    - name: Try to collect facts
+      setup: {}
+    rescue:
+    - name: Install python for ansible
+      raw: apt-get -y update && apt-get -y install python-minimal
+    - name: Collect facts
+      setup: {}
+  - name: Install packages to allow apt to use a repository over HTTPS
+    apt:
+      name: ["apt-transport-https", "ca-certificates", "curl", "gnupg2", "software-properties-common"]
+      state: present
+      update_cache: yes
+  - name: Add official GPG key for Docker
+    apt_key: url=https://download.docker.com/linux/ubuntu/gpg
+  - name: Set up the stable repository
+    apt_repository:
+      repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ansible_distribution_release}} stable
+  - name: Install the latest version of Docker CE and containerd
+    apt:
+      name: ["docker-ce", "docker-ce-cli", "containerd.io"]
+      state: present
+      update_cache: yes
+  - name: Install python pip
+    apt:
+      name: ["python", "python-backports.ssl-match-hostname", "python-pip"]
+      state: present
+      update_cache: yes
+  - name: Install needed packages for docker module
+    pip:
+      name:
+      - "docker"
+      - "docker-py"
+  - name: Install tools
+    apt:
+      name: ["rsync"]
+      state: present
+      update_cache: yes
+  - name: Clean directory
+    file:
+      path: /tmp/project
+      state: absent
+  - name: Create directory
+    file:
+      path: /tmp/project
+      state: directory
+      owner: root
+      group: root
+      mode: u=rwx,g=rx,o=rx
+  - name: Copy files
+    synchronize:
+      src: "{{ lookup('env','WORKSPACE') }}/"
+      dest: "/tmp/project/"
+  - name: Build docker image
+    docker_image:
+      name: project
+      path: /tmp/project
+      force: yes
+  - name: Remove old container
+    docker_container:
+      name: project_container_1
+      state: absent
+  - name: Create new container
+    docker_container:
+      name: project_container_1
+      image: project
+      published_ports:
+      - "80:80"

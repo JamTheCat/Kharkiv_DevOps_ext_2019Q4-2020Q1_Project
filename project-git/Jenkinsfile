@@ -1,0 +1,39 @@
+pipeline {
+    agent any
+    options {
+        skipDefaultCheckout(true)
+    }
+    stages {
+        stage("Git") {
+            steps {
+                deleteDir()
+                checkout scm
+            }
+        }
+        stage("SonarQube") {
+            steps {
+                withSonarQubeEnv("sonarqube") {
+                    sh "${tool 'sonarqube'}/bin/sonar-scanner -Dsonar.projectKey=epam-project -Dsonar.sources=."
+                }
+            }
+        }
+        stage("SonarQube Quality Gate") {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        stage("Deploy to staging") {
+            steps {
+                ansiblePlaybook(playbook: "${WORKSPACE}/ansible-playbook.yml", inventory: "${WORKSPACE}/ansible-inventory-staging.ini")
+            }
+        }
+        stage("Deploy to production") {
+            steps {
+                input "Deploy to production?"
+                ansiblePlaybook(playbook: "${WORKSPACE}/ansible-playbook.yml", inventory: "${WORKSPACE}/ansible-inventory-production.ini", credentialsId: "amazon", disableHostKeyChecking: true)
+            }
+        }
+    }
+}

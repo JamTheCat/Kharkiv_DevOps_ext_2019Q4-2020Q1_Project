@@ -1,0 +1,62 @@
+version: "3.7"
+
+
+services:
+
+  traefik:
+    image: traefik:cantal
+    ports:
+    - "80:80"
+    volumes:
+    - "./traefik:/etc/traefik"
+    - "/var/run/docker.sock:/var/run/docker.sock"
+
+  gogs:
+    image: gogs/gogs:0.11.91
+    volumes:
+    - "gogs-data:/data"
+    - "./gogs/app.ini:/data/gogs/conf/app.ini"
+    labels:
+    - "traefik.http.routers.git.rule=PathPrefix(`/git`)"
+    - "traefik.http.routers.git.middlewares=git@docker"
+    - "traefik.http.middlewares.git.stripprefix.prefixes=/git"
+    - "traefik.http.services.git.loadbalancer.server.port=3000"
+
+  jenkins:
+    build: ./jenkins
+    environment:
+      JENKINS_OPTS: "--prefix=/jenkins"
+    volumes:
+    - "jenkins-data:/var/jenkins_home"
+    - "/var/run/docker.sock:/var/run/docker.sock"
+    - "/usr/local/bin/docker:/usr/bin/docker"
+    labels:
+    - "traefik.http.routers.jenkins.rule=PathPrefix(`/jenkins`)"
+    - "traefik.http.services.jenkins.loadbalancer.server.port=8080"
+
+  sonarqube:
+    image: sonarqube:lts
+    environment:
+      sonar.web.context: /sonarqube
+    volumes:
+    - "sonarqube-data:/opt/sonarqube/data"
+    - "sonarqube-extensions:/opt/sonarqube/extensions"
+    - "sonarqube-logs:/opt/sonarqube/logs"
+    labels:
+    - "traefik.http.routers.sonarqube.rule=PathPrefix(`/sonarqube`)"
+    - "traefik.http.services.sonarqube.loadbalancer.server.port=9000"
+
+
+volumes:
+  gogs-data:
+  jenkins-data:
+  sonarqube-data:
+  sonarqube-extensions:
+  sonarqube-logs:
+
+
+# docker-compose up --build -d
+# docker-compose logs -f
+
+# docker rm -f project_container_1
+# docker-compose down --remove-orphans
